@@ -100,7 +100,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 w-full">
       <div className={`p-6 ${type === ItemType.LOST ? 'bg-rose-50 border-b border-rose-100' : 'bg-emerald-50 border-b border-emerald-100'}`}>
         <h2 className={`text-2xl font-bold ${type === ItemType.LOST ? 'text-rose-800' : 'text-emerald-800'}`}>
           Report {type === ItemType.LOST ? 'Lost' : 'Found'} Item
@@ -226,7 +226,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
             <input

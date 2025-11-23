@@ -15,8 +15,8 @@ export const MatchModal: React.FC<MatchModalProps> = ({ targetItem, matches, all
   const [showContactFor, setShowContactFor] = React.useState<string | null>(null);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-auto flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-50/50">
           <div>
             <h2 className="text-xl font-bold text-gray-900 flex items-center">
@@ -51,7 +51,7 @@ export const MatchModal: React.FC<MatchModalProps> = ({ targetItem, matches, all
 
                 return (
                   <div key={match.itemId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                       {/* Match details */}
                       <div className="flex-1">
                         <div className="flex items-center mb-2">
@@ -74,7 +74,7 @@ export const MatchModal: React.FC<MatchModalProps> = ({ targetItem, matches, all
                       </div>
 
                       {/* Image & Action */}
-                      <div className="w-full md:w-48 flex flex-col gap-2 shrink-0">
+                      <div className="w-full sm:w-48 flex flex-col gap-2 shrink-0">
                         <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
                           {matchedItem.imageUrl ? (
                             <img src={matchedItem.imageUrl} alt={matchedItem.title} className="w-full h-full object-cover" />

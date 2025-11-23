@@ -35,7 +35,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ conversationId, itemTitle,
   const handleSend = async () => {
     if (!text.trim()) return;
     try {
-      await sendMessage(conversationId, currentUser.uid, text.trim());
+      await sendMessage(conversationId, currentUser.uid, text.trim(), currentUser.displayName || null);
       setText('');
       inputRef.current?.focus();
     } catch (err) {

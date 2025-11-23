@@ -39,9 +39,9 @@ export async function getOrCreateConversation(itemId: string, userA: string, use
   return await createConversation(itemId, [userA, userB]);
 }
 
-export async function sendMessage(conversationId: string, senderId: string, text: string) {
+export async function sendMessage(conversationId: string, senderId: string, text: string, senderName?: string) {
   const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-  const msg = { senderId, text, createdAt: serverTimestamp() } as any;
+  const msg = { senderId, senderName: senderName || null, text, createdAt: serverTimestamp() } as any;
   await addDoc(messagesRef, msg);
 }
 

@@ -24,10 +24,8 @@ exports.notifyOnMessage = functions.firestore
     const recipients = participants.filter(uid => uid !== message.senderId);
     if (recipients.length === 0) return null;
 
-    // Example payload; you'll need to map uid -> device token stored in your users collection
+    // Fetch tokens for recipients from users collection (you must store tokens when clients register)
     const tokens = [];
-
-    // Fetch tokens from users collection (you must store tokens when clients register)
     for (const uid of recipients) {
       const userDoc = await admin.firestore().doc(`users/${uid}`).get();
       const token = userDoc.exists ? userDoc.data()?.fcmToken : null;
@@ -35,17 +33,43 @@ exports.notifyOnMessage = functions.firestore
     }
 
     if (tokens.length > 0) {
+      // Try to fetch item title for a better notification string
+      let itemTitle = conv?.itemId || 'an item';
+      try {
+        if (conv?.itemId) {
+          const itemDoc = await admin.firestore().doc(`items/${conv.itemId}`).get();
+          if (itemDoc.exists) itemTitle = itemDoc.data()?.title || itemTitle;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const sender = message.senderName || 'Someone';
       const payload = {
         notification: {
-          title: `New message about ${conv?.itemId || 'an item'}`,
+          title: `${sender} sent a message about ${itemTitle}`,
           body: message.text?.slice(0, 120) || 'You have a new message',
         },
         data: {
           conversationId,
         }
       };
+
+      // Use sendMulticast for multiple tokens
       try {
-        await admin.messaging().sendToDevice(tokens, payload);
+        const multicast = { tokens, ...payload };
+        const response = await admin.messaging().sendMulticast({
+          tokens,
+          notification: payload.notification,
+          data: payload.data
+        });
+        // Log failures and consider cleaning invalid tokens
+        if (response.failureCount > 0) {
+          const errors = response.responses
+            .map((r, i) => ({ success: r.success, error: r.error, token: tokens[i] }))
+            .filter(r => !r.success);
+          console.warn('Some tokens failed:', errors);
+        }
       } catch (err) {
         console.error('FCM send error', err);
       }

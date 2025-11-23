@@ -3,37 +3,58 @@ import { Navbar } from './components/Navbar';
 import { ItemCard } from './components/ItemCard';
 import { ReportForm } from './components/ReportForm';
 import { MatchModal } from './components/MatchModal';
-import { MOCK_ITEMS, CATEGORIES } from './constants';
+import { CATEGORIES } from './constants';
 import { Item, ItemType, MatchResult } from './types';
 import { findSmartMatches } from './services/geminiService';
+import { getItemsFromFirestore, addItemToFirestore } from './services/itemService';
 import { Loader2, Filter, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('home');
-  const [items, setItems] = useState<Item[]>(MOCK_ITEMS);
+  const [items, setItems] = useState<Item[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
-  
+
   // Matching State
   const [isMatching, setIsMatching] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [targetItemForMatch, setTargetItemForMatch] = useState<Item | null>(null);
 
-  // Handle adding new items
-  const handleAddItem = (newItem: Omit<Item, 'id'>) => {
-    const item: Item = {
-      ...newItem,
-      id: Date.now().toString(),
+  // Fetch items on mount
+  useEffect(() => {
+    const fetchItems = async () => {
+      setIsLoading(true);
+      try {
+        const fetchedItems = await getItemsFromFirestore();
+        setItems(fetchedItems);
+      } catch (error) {
+        console.error("Failed to fetch items:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
-    setItems(prev => [item, ...prev]);
-    setCurrentView('home');
+
+    fetchItems();
+  }, []);
+
+  // Handle adding new items
+  const handleAddItem = async (newItem: Omit<Item, 'id'>) => {
+    try {
+      const addedItem = await addItemToFirestore(newItem);
+      setItems(prev => [addedItem, ...prev]);
+      setCurrentView('home');
+    } catch (error) {
+      console.error("Failed to add item:", error);
+      alert("Failed to save item. Please try again.");
+    }
   };
 
   // Trigger AI Matching
   const handleSmartMatch = async (item: Item) => {
     setTargetItemForMatch(item);
     setIsMatching(true);
-    
+
     try {
       const response = await findSmartMatches(item, items);
       // Sort by confidence
@@ -76,9 +97,9 @@ const App: React.FC = () => {
                 <Filter className="text-gray-400 w-5 h-5" />
                 <span className="font-medium text-gray-700">Filters:</span>
               </div>
-              
+
               <div className="flex flex-wrap gap-4">
-                <select 
+                <select
                   className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
@@ -88,7 +109,7 @@ const App: React.FC = () => {
                   <option value={ItemType.FOUND}>Found Items</option>
                 </select>
 
-                <select 
+                <select
                   className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
@@ -104,7 +125,11 @@ const App: React.FC = () => {
             </div>
 
             {/* Grid */}
-            {filteredItems.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+              </div>
+            ) : filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredItems.map(item => (
                   <ItemCard key={item.id} item={item} onSmartMatch={handleSmartMatch} />
@@ -113,8 +138,8 @@ const App: React.FC = () => {
             ) : (
               <div className="text-center py-20">
                 <p className="text-gray-400 text-lg">No items found matching your criteria.</p>
-                <button 
-                  onClick={() => {setFilterCategory('All'); setFilterType('All');}}
+                <button
+                  onClick={() => { setFilterCategory('All'); setFilterType('All'); }}
                   className="mt-4 text-indigo-600 font-medium hover:underline flex items-center justify-center mx-auto"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" /> Clear Filters
@@ -125,18 +150,18 @@ const App: React.FC = () => {
         )}
 
         {currentView === 'report-lost' && (
-          <ReportForm 
-            type={ItemType.LOST} 
-            onSubmit={handleAddItem} 
-            onCancel={() => setCurrentView('home')} 
+          <ReportForm
+            type={ItemType.LOST}
+            onSubmit={handleAddItem}
+            onCancel={() => setCurrentView('home')}
           />
         )}
 
         {currentView === 'report-found' && (
-          <ReportForm 
-            type={ItemType.FOUND} 
-            onSubmit={handleAddItem} 
-            onCancel={() => setCurrentView('home')} 
+          <ReportForm
+            type={ItemType.FOUND}
+            onSubmit={handleAddItem}
+            onCancel={() => setCurrentView('home')}
           />
         )}
       </main>
@@ -153,16 +178,16 @@ const App: React.FC = () => {
             </div>
           ) : (
             // Results State
-            <MatchModal 
-              targetItem={targetItemForMatch!} 
-              matches={matchResults} 
+            <MatchModal
+              targetItem={targetItemForMatch!}
+              matches={matchResults}
               allItems={items}
               onClose={() => setTargetItemForMatch(null)}
             />
           )}
         </div>
       )}
-      
+
       <footer className="bg-white border-t border-gray-200 mt-12 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
           <p>&copy; 2023 Seek & Find AI. Powered by Google Gemini.</p>

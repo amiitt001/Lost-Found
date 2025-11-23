@@ -16,8 +16,19 @@ View your app in AI Studio: https://ai.studio/apps/drive/1UX-lWyOM2hreEc_Esa_Uoe
 1. Install dependencies:
    `npm install`
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+3. Start the server-side API (it keeps your Gemini key on the server):
+
+   ```
+   npm run serve-api
+   ```
+
+4. In a separate terminal, run the frontend dev server:
+
+   ```
+   npm run dev
+   ```
+
+Note: If you previously built or deployed the app while using a `VITE_GEMINI_API_KEY`, that key may be embedded in the published JS. If your key was exposed, rotate it immediately and stop using client-side env vars for secrets.
 
 ## Firebase setup (optional)
 

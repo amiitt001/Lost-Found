@@ -27,7 +27,7 @@ const cleanAndParseJSON = <T>(text: string): T => {
  */
 export const analyzeItemImage = async (base64Data: string, mimeType: string): Promise<AIAnalysisResult> => {
   const ai = getAIClient();
-  
+
   const prompt = `
     Analyze this image of a lost or found item. 
     Identify the object, its color, and any distinctive features.
@@ -119,14 +119,20 @@ export const findSmartMatches = async (targetItem: Item, candidates: Item[]): Pr
 
     Analyze the descriptions, locations, dates, and categories.
     Identify which candidates are likely to be the same physical object as the target item.
-    Be strict but helpful. A match requires similar description, plausible location proximity, and logical date ordering (Lost date <= Found date).
+    
+    Matching Rules:
+    1. **Category Match**: High importance.
+    2. **Keyword Match**: Look for matching brand names (e.g. "SG", "Nike") or specific object types (e.g. "Cricket Bat").
+    3. **Fuzzy Description**: Be lenient with minor color or description discrepancies (e.g. "Blue decals" vs "Red decals") if the core object and brand match strongly.
+    4. **Location**: Plausible proximity is good, but items move.
+    5. **Date**: Lost date must be before or same as Found date.
 
     Return a JSON object with a "matches" array. Each match should have:
     - "itemId": The ID of the matching candidate.
     - "confidence": A number 0-100 indicating confidence level.
     - "reasoning": A short explanation of why it matches.
 
-    Only return matches with confidence > 40.
+    Return matches with confidence > 30.
   `;
 
   try {

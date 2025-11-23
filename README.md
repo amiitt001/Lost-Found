@@ -32,6 +32,15 @@ Note: If you previously built or deployed the app while using a `VITE_GEMINI_API
 
 If you deploy the frontend to a static host (e.g. Vercel) and the server API is hosted separately, set the `VITE_API_BASE` env var for the frontend build to point at your API origin (for example `https://api.example.com`). If the API is deployed alongside the frontend under `/api`, no extra configuration is required.
 
+Vercel deploy checklist
+1. Commit and push your branch to the repo connected to Vercel.
+2. In Vercel project settings > Environment Variables, add `GEMINI_API_KEY` (Production) with your key.
+3. Ensure the `api/` folder is included in the repository root (we added `api/analyze.js` and `api/match.js`). Vercel will automatically build these as serverless functions and expose them under `/api/*`.
+4. If you host the API separately, set `VITE_API_BASE` in Vercel's environment variables to point to your API origin.
+5. Redeploy the project.
+
+If you previously deployed with `VITE_GEMINI_API_KEY` or you published a build that included your key, rotate the key immediately.
+
 ## Firebase setup (optional)
 
 1. Copy `.env.local.example` to `.env.local` and fill in your Firebase values.

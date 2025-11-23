@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [isMatching, setIsMatching] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [targetItemForMatch, setTargetItemForMatch] = useState<Item | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Fetch items on mount
   useEffect(() => {
@@ -118,9 +119,22 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Match failed", error);
       setMatchResults([]);
+      // Show user-friendly toast
+      const msg = (error && (error.message || String(error))) || 'Match service failed. Please try again later.';
+      setToastMessage(msg);
+      // auto-clear after 6s
+      setTimeout(() => setToastMessage(null), 6000);
     } finally {
       setIsMatching(false);
     }
+  };
+
+  const handleRetryMatch = async () => {
+    if (!targetItemForMatch) return;
+    // Clear the toast and re-run match
+    setToastMessage(null);
+    // Slight delay to ensure UI updates
+    setTimeout(() => handleSmartMatch(targetItemForMatch), 50);
   };
 
   const filteredItems = items.filter(item => {
@@ -140,6 +154,21 @@ const App: React.FC = () => {
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {toastMessage && (
+          <div className="fixed top-6 right-6 z-50">
+            <div className="bg-red-600 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-3">
+              <div className="flex-1">{toastMessage}</div>
+              {targetItemForMatch && (
+                <button
+                  onClick={handleRetryMatch}
+                  className="bg-white text-red-600 px-3 py-1 rounded-md font-medium hover:bg-gray-100"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {currentView === 'home' && (
           <>
             {/* Hero / Header Section */}

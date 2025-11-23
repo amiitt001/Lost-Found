@@ -24,6 +24,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
     location: '',
     date: new Date().toISOString().split('T')[0],
     contactName: '',
+    contactEmail: '',
+    contactPhone: '',
     imageUrl: '' as string | null,
   });
 
@@ -37,7 +39,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
       const base64String = reader.result as string;
       setImagePreview(base64String);
       setFormData(prev => ({ ...prev, imageUrl: base64String }));
-      
+
       // Auto-trigger AI analysis
       triggerAIAnalysis(file, base64String);
     };
@@ -110,7 +112,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
         {/* Image Upload Section */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Item Image (Upload for AI Auto-fill)</label>
-          <div 
+          <div
             className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition-all relative
               ${imagePreview ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-300 hover:bg-gray-50 hover:border-gray-400'}
             `}
@@ -119,7 +121,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
             {imagePreview ? (
               <div className="relative w-full h-64 group">
                 <img src={imagePreview} alt="Preview" className="w-full h-full object-contain rounded-md" />
-                <button 
+                <button
                   onClick={clearImage}
                   className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100 transition-colors"
                   title="Remove image"
@@ -139,21 +141,21 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
             ) : (
               <div className="text-center py-4">
                 <div className="bg-indigo-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                   <Upload className="h-6 w-6 text-indigo-600" />
+                  <Upload className="h-6 w-6 text-indigo-600" />
                 </div>
                 <p className="mt-2 text-sm font-medium text-gray-700">Click to upload or drag and drop</p>
                 <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
               </div>
             )}
-            <input 
+            <input
               ref={fileInputRef}
-              type="file" 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleImageUpload} 
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleImageUpload}
             />
           </div>
-          {isAnalyzing && !imagePreview && <p className="text-sm text-indigo-600 mt-2 flex items-center"><Loader2 className="w-3 h-3 animate-spin mr-1"/> Analyzing...</p>}
+          {isAnalyzing && !imagePreview && <p className="text-sm text-indigo-600 mt-2 flex items-center"><Loader2 className="w-3 h-3 animate-spin mr-1" /> Analyzing...</p>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -224,16 +226,39 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
-          <input
-            type="text"
-            required
-            value={formData.contactName}
-            onChange={e => setFormData({ ...formData, contactName: e.target.value })}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="Your Name"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+            <input
+              type="text"
+              required
+              value={formData.contactName}
+              onChange={e => setFormData({ ...formData, contactName: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="Your Name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              required
+              value={formData.contactEmail}
+              onChange={e => setFormData({ ...formData, contactEmail: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone (Optional)</label>
+            <input
+              type="tel"
+              value={formData.contactPhone}
+              onChange={e => setFormData({ ...formData, contactPhone: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="+1 234 567 8900"
+            />
+          </div>
         </div>
 
         <div className="flex justify-end space-x-4 pt-6 border-t border-gray-100">
@@ -246,11 +271,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
           </button>
           <button
             type="submit"
-            className={`px-6 py-2 text-white font-medium rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 ${
-              type === ItemType.LOST 
-                ? 'bg-rose-600 hover:bg-rose-700' 
-                : 'bg-emerald-600 hover:bg-emerald-700'
-            }`}
+            className={`px-6 py-2 text-white font-medium rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 ${type === ItemType.LOST
+              ? 'bg-rose-600 hover:bg-rose-700'
+              : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
           >
             Submit Report
           </button>

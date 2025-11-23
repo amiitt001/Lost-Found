@@ -13,6 +13,8 @@ export interface Item {
   date: string;
   imageUrl: string | null;
   contactName: string;
+  contactEmail: string;
+  contactPhone?: string;
   status: 'OPEN' | 'RESOLVED';
 }
 

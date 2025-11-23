@@ -1,6 +1,6 @@
 import { Item, AIAnalysisResult, MatchResponse } from "../types";
 
-const API_BASE = '/api';
+const API_BASE = (import.meta as any).env.VITE_API_BASE || '/api';
 
 /**
  * Helper to parse JSON that might be wrapped in markdown code blocks
@@ -26,6 +26,9 @@ export const analyzeItemImage = async (base64Data: string, mimeType: string): Pr
   });
   if (!resp.ok) {
     const txt = await resp.text();
+    if (resp.status === 404) {
+      console.error(`AI analyze endpoint not found at ${API_BASE}/analyze. Make sure the server API is running or set VITE_API_BASE to the correct URL.`);
+    }
     throw new Error(`AI analyze failed: ${resp.status} ${txt}`);
   }
   return await resp.json() as AIAnalysisResult;
@@ -47,7 +50,12 @@ export const findSmartMatches = async (targetItem: Item, candidates: Item[]): Pr
     body: JSON.stringify({ targetItem, candidates: potentialMatches })
   });
   if (!resp.ok) {
-    console.error('Match API failed', resp.status);
+    const text = await resp.text().catch(() => '');
+    if (resp.status === 404) {
+      console.error(`Match API not found at ${API_BASE}/match (404). Ensure the server is deployed and VITE_API_BASE is configured if the API is hosted on a different domain.`);
+    } else {
+      console.error('Match API failed', resp.status, text);
+    }
     return { matches: [] };
   }
   return await resp.json() as MatchResponse;

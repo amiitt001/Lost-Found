@@ -30,6 +30,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1UX-lWyOM2hreEc_Esa_Uoe
 
 Note: If you previously built or deployed the app while using a `VITE_GEMINI_API_KEY`, that key may be embedded in the published JS. If your key was exposed, rotate it immediately and stop using client-side env vars for secrets.
 
+If you deploy the frontend to a static host (e.g. Vercel) and the server API is hosted separately, set the `VITE_API_BASE` env var for the frontend build to point at your API origin (for example `https://api.example.com`). If the API is deployed alongside the frontend under `/api`, no extra configuration is required.
+
 ## Firebase setup (optional)
 
 1. Copy `.env.local.example` to `.env.local` and fill in your Firebase values.

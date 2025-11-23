@@ -15,6 +15,7 @@ export interface Item {
   contactName: string;
   contactEmail: string;
   contactPhone?: string;
+  userId?: string;
   status: 'OPEN' | 'RESOLVED';
 }
 

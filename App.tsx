@@ -7,12 +7,15 @@ import { CATEGORIES } from './constants';
 import { Item, ItemType, MatchResult } from './types';
 import { findSmartMatches } from './services/geminiService';
 import { getItemsFromFirestore, addItemToFirestore, updateItemStatus, deleteItemFromFirestore } from './services/itemService';
+import { signInWithGoogle, signOut, subscribeToAuthChanges } from './services/authService';
+import { User } from 'firebase/auth';
 import { Loader2, Filter, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState('home');
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterType, setFilterType] = useState<string>('All');
 
@@ -36,12 +39,22 @@ const App: React.FC = () => {
     };
 
     fetchItems();
+
+    const unsubscribe = subscribeToAuthChanges((currentUser) => {
+      setUser(currentUser);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Handle adding new items
   const handleAddItem = async (newItem: Omit<Item, 'id'>) => {
     try {
-      const addedItem = await addItemToFirestore(newItem);
+      const itemWithUser = {
+        ...newItem,
+        userId: user?.uid, // Attach user ID if logged in
+      };
+      const addedItem = await addItemToFirestore(itemWithUser);
       setItems(prev => [addedItem, ...prev]);
       setCurrentView('home');
     } catch (error) {
@@ -60,6 +73,22 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Failed to delete item:", error);
       alert("Failed to delete item. Please try again.");
+    }
+  };
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      alert("Failed to sign in. Please try again.");
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      alert("Failed to sign out.");
     }
   };
 
@@ -101,8 +130,14 @@ const App: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      <Navbar currentView={currentView} setCurrentView={setCurrentView} />
+    <div className="min-h-screen bg-gray-50 pb-12">
+      <Navbar
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        user={user}
+        onSignIn={handleSignIn}
+        onSignOut={handleSignOut}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentView === 'home' && (
@@ -157,15 +192,18 @@ const App: React.FC = () => {
               </div>
             ) : filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredItems.map(item => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    onSmartMatch={handleSmartMatch}
-                    onResolve={handleResolveItem}
-                    onDelete={handleDeleteItem}
-                  />
-                ))}
+                {filteredItems.map(item => {
+                  const isOwner = user && item.userId === user.uid;
+                  return (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      onSmartMatch={handleSmartMatch}
+                      onResolve={isOwner ? handleResolveItem : undefined}
+                      onDelete={isOwner ? handleDeleteItem : undefined}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-20">

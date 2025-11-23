@@ -1,0 +1,5 @@
+{
+  "name": "Seek & Find AI",
+  "description": "An AI-powered Lost and Found community platform. Report lost items, list found objects, and use Gemini AI to auto-generate descriptions and intelligently match lost items with found ones.",
+  "requestFramePermissions": []
+}

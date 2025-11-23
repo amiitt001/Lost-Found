@@ -10,7 +10,13 @@ import { collection, doc, setDoc, getDoc, query, where, getDocs, addDoc, orderBy
 export const getConversationDocRef = (conversationId: string) => doc(db, 'conversations', conversationId);
 
 export async function findExistingConversation(itemId: string, userA: string, userB: string) {
-  const q = query(collection(db, 'conversations'), where('itemId', '==', itemId));
+  // Query conversations for this item where the current user is a participant.
+  // This keeps queries compatible with security rules that require array-contains on participants.
+  const q = query(
+    collection(db, 'conversations'),
+    where('itemId', '==', itemId),
+    where('participants', 'array-contains', userA)
+  );
   const snap = await getDocs(q);
   for (const d of snap.docs) {
     const data = d.data();

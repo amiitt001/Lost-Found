@@ -15,6 +15,8 @@ interface ReportFormProps {
 export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [lastImageFile, setLastImageFile] = useState<File | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -39,6 +41,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
       const base64String = reader.result as string;
       setImagePreview(base64String);
       setFormData(prev => ({ ...prev, imageUrl: base64String }));
+      setLastImageFile(file);
+      setAiError(null);
 
       // Auto-trigger AI analysis
       triggerAIAnalysis(file, base64String);
@@ -48,6 +52,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
 
   const triggerAIAnalysis = async (file: File, base64Full: string) => {
     setIsAnalyzing(true);
+    setAiError(null);
     try {
       // Remove data URL prefix for Gemini
       const base64Data = base64Full.split(',')[1];
@@ -62,7 +67,13 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
       }));
     } catch (error) {
       console.error("AI Analysis failed", error);
-      // Fallback or user notification could go here
+      // If the server reports the API key is denied/leaked, show a helpful message
+      const message = (error as any)?.message || String(error);
+      if ((error as any)?.code === 'GEMINI_KEY_DENIED' || message.toLowerCase().includes('gemini api key')) {
+        setAiError('AI analysis unavailable: your server-side Gemini API key was denied or reported leaked. Rotate the key and set `GEMINI_API_KEY` in your deployment environment (see README).');
+      } else {
+        setAiError('AI analysis failed. You can retry or continue manually.');
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -155,6 +166,24 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
               onChange={handleImageUpload}
             />
           </div>
+          {aiError && (
+            <div className="mt-3 p-3 rounded-md bg-red-50 border border-red-100 text-red-700 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>{aiError}</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (lastImageFile && imagePreview) triggerAIAnalysis(lastImageFile, imagePreview);
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {isAnalyzing && !imagePreview && <p className="text-sm text-indigo-600 mt-2 flex items-center"><Loader2 className="w-3 h-3 animate-spin mr-1" /> Analyzing...</p>}
         </div>
 

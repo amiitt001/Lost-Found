@@ -25,11 +25,31 @@ export const analyzeItemImage = async (base64Data: string, mimeType: string): Pr
     body: JSON.stringify({ base64Data, mimeType })
   });
   if (!resp.ok) {
-    const txt = await resp.text();
+    // Try to parse structured JSON error from the server
+    let text = '';
+    try {
+      const j = await resp.json();
+      text = j.error || JSON.stringify(j);
+    } catch (e) {
+      text = await resp.text().catch(() => '');
+    }
+
     if (resp.status === 404) {
       console.error(`AI analyze endpoint not found at ${API_BASE}/analyze. Make sure the server API is running or set VITE_API_BASE to the correct URL.`);
+      throw new Error(`AI analyze endpoint not found (404).`);
     }
-    throw new Error(`AI analyze failed: ${resp.status} ${txt}`);
+
+    if (resp.status === 403) {
+      // Server has indicated the provider denied the key (often reported as leaked)
+      const msg = text || 'Gemini API key denied or reported leaked. Rotate the key and set `GEMINI_API_KEY` in your deployment environment.';
+      const userMsg = `Gemini API key denied: ${msg}`;
+      // Provide an informative error that UI can detect
+      const err: any = new Error(userMsg);
+      err.code = 'GEMINI_KEY_DENIED';
+      throw err;
+    }
+
+    throw new Error(`AI analyze failed: ${resp.status} ${text}`);
   }
   return await resp.json() as AIAnalysisResult;
 };
@@ -50,12 +70,28 @@ export const findSmartMatches = async (targetItem: Item, candidates: Item[]): Pr
     body: JSON.stringify({ targetItem, candidates: potentialMatches })
   });
   if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
+    // Try parse structured json response
+    let text = '';
+    try {
+      const j = await resp.json();
+      text = j.error || JSON.stringify(j);
+    } catch (e) {
+      text = await resp.text().catch(() => '');
+    }
+
     if (resp.status === 404) {
       console.error(`Match API not found at ${API_BASE}/match (404). Ensure the server is deployed and VITE_API_BASE is configured if the API is hosted on a different domain.`);
-    } else {
-      console.error('Match API failed', resp.status, text);
+      throw new Error('Match API not found (404).');
     }
+
+    if (resp.status === 403) {
+      const msg = text || 'Gemini API key denied or reported leaked. Rotate the key and set `GEMINI_API_KEY` in your deployment environment.';
+      const err: any = new Error(`Gemini API key denied: ${msg}`);
+      err.code = 'GEMINI_KEY_DENIED';
+      throw err;
+    }
+
+    console.error('Match API failed', resp.status, text);
     return { matches: [] };
   }
   return await resp.json() as MatchResponse;

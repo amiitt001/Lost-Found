@@ -17,6 +17,23 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
+    // Users collection (store fcmToken and minimal profile info)
+    match /users/{userId} {
+      // Allow users to read their own document
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Allow creating/updating only by the user themself and restrict writes to fcmToken field
+      allow create, update: if request.auth != null
+                              && request.auth.uid == userId
+                              && (
+                                // allow writing fcmToken (string or null)
+                                (request.resource.data.keys().hasOnly(['fcmToken']) && (request.resource.data.fcmToken is string || request.resource.data.fcmToken == null))
+                              );
+
+      // Do not allow delete via client
+      allow delete: if false;
+    }
+
     // Conversations collection
     match /conversations/{convId} {
       // Create: must be authenticated and include the current user in participants
@@ -47,8 +64,24 @@ service cloud.firestore {
                       && request.resource.data.text is string
                       && request.resource.data.text.size() > 0;
 
-        // No updates/deletes to messages allowed except by participants (optional: only sender)
-        allow update, delete: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participants;
+        // Updates: allow admins full update; participants may update only non-moderation fields.
+        // Prevent participants from resolving flags or unflagging messages.
+        allow update: if request.auth != null && (
+          // admin can update anything
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+          // participants can update (non-moderation changes) — do not allow them to set flaggedResolved* or to clear flagged
+          || (
+            request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participants
+            && !request.resource.data.keys().hasAny(['flaggedResolvedAt', 'flaggedResolvedBy'])
+            && !(request.resource.data.keys().hasAny(['flagged']) && request.resource.data.flagged == false)
+          )
+        );
+
+        // Delete: allow admin to delete any message. Allow sender to delete their message only if it is not currently flagged.
+        allow delete: if request.auth != null && (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+          || (request.auth.uid == resource.data.senderId && (resource.data.flagged != true))
+        );
       }
     }
 

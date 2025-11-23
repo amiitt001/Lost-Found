@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { X } from 'lucide-react';
-import { subscribeToMessages, sendMessage } from '../services/messageService';
+import { X, Flag } from 'lucide-react';
+import { subscribeToMessages, sendMessage, flagMessage } from '../services/messageService';
 import { User } from 'firebase/auth';
 
 interface ChatModalProps {
@@ -14,11 +14,23 @@ export const ChatModal: React.FC<ChatModalProps> = ({ conversationId, itemTitle,
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const unsub = subscribeToMessages(conversationId, (msgs) => setMessages(msgs));
     return () => unsub();
   }, [conversationId]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (!containerRef.current) return;
+    // small delay to ensure DOM updated
+    const id = setTimeout(() => {
+      const el = containerRef.current as HTMLDivElement;
+      el.scrollTop = el.scrollHeight;
+    }, 25);
+    return () => clearTimeout(id);
+  }, [messages]);
 
   const handleSend = async () => {
     if (!text.trim()) return;
@@ -43,15 +55,40 @@ export const ChatModal: React.FC<ChatModalProps> = ({ conversationId, itemTitle,
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700"><X /></button>
         </div>
 
-        <div className="p-4 h-96 overflow-y-auto bg-gray-50" id="chat-container">
-          {messages.map(m => (
-            <div key={m.id} className={`mb-3 ${m.senderId === currentUser.uid ? 'text-right' : 'text-left'}`}>
-              <div className={`inline-block px-3 py-2 rounded-lg ${m.senderId === currentUser.uid ? 'bg-indigo-600 text-white' : 'bg-white text-gray-800 border'}`}>
-                {m.text}
-                <div className="text-xs text-gray-400 mt-1">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
+        <div className="p-4 h-96 overflow-y-auto bg-gray-50" id="chat-container" ref={containerRef}>
+          {messages.map(m => {
+            const mine = m.senderId === currentUser.uid;
+            const initials = (m.senderName || m.senderId || '').toString().slice(0, 2).toUpperCase();
+            return (
+              <div key={m.id} className={`mb-3 flex items-start ${mine ? 'justify-end' : ''}`}>
+                {!mine && (
+                  <div className="flex-shrink-0 mr-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold">{initials || 'U'}</div>
+                  </div>
+                )}
+
+                <div className={`inline-block px-3 py-2 rounded-lg max-w-[75%] ${mine ? 'bg-indigo-600 text-white text-right' : 'bg-white text-gray-800 border'}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 text-sm">{m.text}</div>
+                    <div className="ml-2">
+                      {!mine && (
+                        <button title="Flag message" className="p-1 text-red-500 hover:text-red-700" onClick={() => flagMessage(conversationId, m.id)}>
+                          <Flag className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
+                </div>
+
+                {mine && (
+                  <div className="flex-shrink-0 ml-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-700 text-white flex items-center justify-center font-semibold">Me</div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="p-4 border-t flex gap-2">

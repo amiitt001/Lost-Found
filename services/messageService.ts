@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, doc, setDoc, getDoc, query, where, getDocs, addDoc, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, query, where, getDocs, addDoc, orderBy, onSnapshot, serverTimestamp, updateDoc, deleteDoc, collectionGroup } from 'firebase/firestore';
 
 /**
  * Conversation document structure:
@@ -43,6 +43,30 @@ export async function sendMessage(conversationId: string, senderId: string, text
   const messagesRef = collection(db, 'conversations', conversationId, 'messages');
   const msg = { senderId, text, createdAt: serverTimestamp() } as any;
   await addDoc(messagesRef, msg);
+}
+
+export async function flagMessage(conversationId: string, messageId: string, reason?: string) {
+  const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+  await updateDoc(msgRef, { flagged: true, flagReason: reason || null, flaggedAt: serverTimestamp() } as any);
+}
+
+export async function resolveFlag(conversationId: string, messageId: string, adminId: string) {
+  const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+  await updateDoc(msgRef, { flagged: false, flaggedResolvedAt: serverTimestamp(), flaggedResolvedBy: adminId } as any);
+}
+
+export async function deleteMessage(conversationId: string, messageId: string) {
+  const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+  await deleteDoc(msgRef);
+}
+
+export function subscribeToFlaggedMessages(callback: (messages: any[]) => void) {
+  // Use collectionGroup to listen across all conversation message subcollections
+  const q = query(collectionGroup(db, 'messages'), where('flagged', '==', true));
+  return onSnapshot(q, (snap) => {
+    const msgs = snap.docs.map(d => ({ id: d.id, ...d.data(), conversationId: d.ref.parent.parent?.id }));
+    callback(msgs as any[]);
+  });
 }
 
 export function subscribeToMessages(conversationId: string, callback: (messages: any[]) => void) {

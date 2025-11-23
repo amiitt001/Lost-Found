@@ -8,6 +8,9 @@ import { Item, ItemType, MatchResult } from './types';
 import { findSmartMatches } from './services/geminiService';
 import { getItemsFromFirestore, addItemToFirestore, updateItemStatus, deleteItemFromFirestore } from './services/itemService';
 import { signInWithGoogle, signOut, subscribeToAuthChanges } from './services/authService';
+import { registerFcmTokenForUser, removeFcmTokenForUser } from './services/notificationService';
+import { isAdminUser } from './services/adminService';
+const AdminModeration = React.lazy(() => import('./components/AdminModeration'));
 import { User } from 'firebase/auth';
 import { Loader2, Filter, RefreshCw } from 'lucide-react';
 
@@ -26,6 +29,7 @@ const App: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
   const [chatItem, setChatItem] = useState<Item | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const LazyChatModal = React.lazy(() => import('./components/ChatModal'));
 
@@ -47,6 +51,27 @@ const App: React.FC = () => {
 
     const unsubscribe = subscribeToAuthChanges((currentUser) => {
       setUser(currentUser);
+      if (currentUser && currentUser.uid) {
+        // check admin membership asynchronously
+        (async () => {
+          try {
+            const admin = await isAdminUser(currentUser.uid);
+            setIsAdmin(admin);
+          } catch (err) {
+            setIsAdmin(false);
+          }
+        })();
+        // register FCM token for notifications (best-effort)
+        (async () => {
+          try {
+            await registerFcmTokenForUser(currentUser.uid);
+          } catch (e) {
+            // ignore
+          }
+        })();
+      } else {
+        setIsAdmin(false);
+      }
     });
 
     return () => unsubscribe();
@@ -91,6 +116,9 @@ const App: React.FC = () => {
 
   const handleSignOut = async () => {
     try {
+      if (user && user.uid) {
+        await removeFcmTokenForUser(user.uid).catch(() => null);
+      }
       await signOut();
     } catch (error) {
       alert("Failed to sign out.");
@@ -182,6 +210,7 @@ const App: React.FC = () => {
         user={user}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}
+        isAdmin={isAdmin}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -325,6 +354,18 @@ const App: React.FC = () => {
           <React.Suspense fallback={null}>
             <LazyChatModal conversationId={chatConversationId} itemTitle={chatItem.title} currentUser={user} onClose={closeChat} />
           </React.Suspense>
+        </div>
+      )}
+
+      {currentView === 'admin' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {isAdmin ? (
+            <React.Suspense fallback={<div>Loading admin tools...</div>}>
+              <AdminModeration />
+            </React.Suspense>
+          ) : (
+            <div className="p-6 bg-white rounded-lg shadow-sm border text-center text-gray-600">You do not have permission to view this page.</div>
+          )}
         </div>
       )}
 

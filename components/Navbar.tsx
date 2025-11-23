@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, MapPin, PlusCircle, LogOut, User as UserIcon, Menu, X } from 'lucide-react';
 import { User } from 'firebase/auth';
+import NotificationToggle from './NotificationToggle';
 
 interface NavbarProps {
   currentView: string;
@@ -8,9 +9,10 @@ interface NavbarProps {
   user: User | null;
   onSignIn: () => void;
   onSignOut: () => void;
+  isAdmin?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, user, onSignIn, onSignOut }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, user, onSignIn, onSignOut, isAdmin = false }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   const handleNavClick = (view: string) => {
@@ -55,6 +57,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, use
 
             {user ? (
               <div className="flex items-center gap-3">
+                <NotificationToggle user={user} />
+                {isAdmin && (
+                  <button
+                    onClick={() => setCurrentView('admin')}
+                    className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Admin
+                  </button>
+                )}
                 {user.photoURL ? (
                   <img src={user.photoURL} alt={user.displayName || 'User'} className="w-8 h-8 rounded-full border border-gray-200" />
                 ) : (
@@ -125,6 +136,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView, use
           <div className="pt-4 pb-4 border-t border-gray-200">
             {user ? (
               <div className="flex items-center px-5">
+                {isAdmin && (
+                  <button
+                    onClick={() => setCurrentView('admin')}
+                    className="mr-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Admin
+                  </button>
+                )}
                 <div className="flex-shrink-0">
                   {user.photoURL ? (
                     <img className="h-10 w-10 rounded-full" src={user.photoURL} alt="" />

@@ -24,6 +24,10 @@ const App: React.FC = () => {
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [targetItemForMatch, setTargetItemForMatch] = useState<Item | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [chatItem, setChatItem] = useState<Item | null>(null);
+
+  const LazyChatModal = React.lazy(() => import('./components/ChatModal'));
 
   // Fetch items on mount
   useEffect(() => {
@@ -129,6 +133,33 @@ const App: React.FC = () => {
     }
   };
 
+  const openChatForItem = async (item: Item) => {
+    if (!user) {
+      // prompt sign in
+      alert('Please sign in to message the poster.');
+      return;
+    }
+    if (!item.userId) {
+      alert('Poster information not available');
+      return;
+    }
+    try {
+      const { getOrCreateConversation } = await import('./services/messageService');
+      const convId = await getOrCreateConversation(item.id, user.uid, item.userId);
+      setChatConversationId(convId);
+      setChatItem(item);
+    } catch (err) {
+      console.error('Failed to open chat', err);
+      setToastMessage('Failed to open chat. Please try again later.');
+      setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
+
+  const closeChat = () => {
+    setChatConversationId(null);
+    setChatItem(null);
+  };
+
   const handleRetryMatch = async () => {
     if (!targetItemForMatch) return;
     // Clear the toast and re-run match
@@ -230,6 +261,7 @@ const App: React.FC = () => {
                       onSmartMatch={handleSmartMatch}
                       onResolve={isOwner ? handleResolveItem : undefined}
                       onDelete={isOwner ? handleDeleteItem : undefined}
+                      onMessage={openChatForItem}
                     />
                   );
                 })}
@@ -284,6 +316,15 @@ const App: React.FC = () => {
               onClose={() => setTargetItemForMatch(null)}
             />
           )}
+        </div>
+      )}
+
+      {chatConversationId && chatItem && user && (
+        <div>
+          {/** Lazy load ChatModal to avoid adding to initial bundle if not used */}
+          <React.Suspense fallback={null}>
+            <LazyChatModal conversationId={chatConversationId} itemTitle={chatItem.title} currentUser={user} onClose={closeChat} />
+          </React.Suspense>
         </div>
       )}
 

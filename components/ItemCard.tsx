@@ -7,6 +7,7 @@ interface ItemCardProps {
   onSmartMatch: (item: Item) => void;
   onResolve?: (item: Item) => void;
   onDelete?: (item: Item) => void;
+  onMessage?: (item: Item) => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({ item, onSmartMatch, onResolve, onDelete }) => {
@@ -79,6 +80,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onSmartMatch, onResolv
           >
             <Trash2 className="w-4 h-4" />
             Delete Item
+          </button>
+        )}
+
+        {onMessage && (
+          <button
+            onClick={() => onMessage(item)}
+            className="w-full mt-2 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            Message
           </button>
         )}
       </div>

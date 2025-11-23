@@ -10,7 +10,7 @@ interface ItemCardProps {
   onMessage?: (item: Item) => void;
 }
 
-export const ItemCard: React.FC<ItemCardProps> = ({ item, onSmartMatch, onResolve, onDelete }) => {
+export const ItemCard: React.FC<ItemCardProps> = ({ item, onSmartMatch, onResolve, onDelete, onMessage }) => {
   const isLost = item.type === ItemType.LOST;
 
   return (

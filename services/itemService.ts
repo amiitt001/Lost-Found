@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, Timestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Item } from '../types';
 
@@ -37,6 +37,26 @@ export const getItemsFromFirestore = async (): Promise<Item[]> => {
         });
     } catch (error) {
         console.error("Error getting documents: ", error);
+        throw error;
+    }
+};
+
+export const updateItemStatus = async (itemId: string, status: 'RESOLVED'): Promise<void> => {
+    try {
+        const itemRef = doc(db, ITEMS_COLLECTION, itemId);
+        await updateDoc(itemRef, { status });
+    } catch (error) {
+        console.error("Error updating document: ", error);
+        throw error;
+    }
+};
+
+export const deleteItemFromFirestore = async (itemId: string): Promise<void> => {
+    try {
+        const itemRef = doc(db, ITEMS_COLLECTION, itemId);
+        await deleteDoc(itemRef);
+    } catch (error) {
+        console.error("Error deleting document: ", error);
         throw error;
     }
 };

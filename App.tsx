@@ -6,7 +6,7 @@ import { MatchModal } from './components/MatchModal';
 import { CATEGORIES } from './constants';
 import { Item, ItemType, MatchResult } from './types';
 import { findSmartMatches } from './services/geminiService';
-import { getItemsFromFirestore, addItemToFirestore } from './services/itemService';
+import { getItemsFromFirestore, addItemToFirestore, updateItemStatus, deleteItemFromFirestore } from './services/itemService';
 import { Loader2, Filter, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -47,6 +47,32 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Failed to add item:", error);
       alert("Failed to save item. Please try again.");
+    }
+  };
+
+  // Handle deleting items
+  const handleDeleteItem = async (item: Item) => {
+    if (!confirm("Are you sure you want to delete this item? This action cannot be undone.")) return;
+
+    try {
+      await deleteItemFromFirestore(item.id);
+      setItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (error) {
+      console.error("Failed to delete item:", error);
+      alert("Failed to delete item. Please try again.");
+    }
+  };
+
+  // Handle resolving items
+  const handleResolveItem = async (item: Item) => {
+    if (!confirm("Are you sure you want to mark this item as resolved?")) return;
+
+    try {
+      await updateItemStatus(item.id, 'RESOLVED');
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'RESOLVED' } : i));
+    } catch (error) {
+      console.error("Failed to resolve item:", error);
+      alert("Failed to update item status. Please try again.");
     }
   };
 
@@ -132,7 +158,13 @@ const App: React.FC = () => {
             ) : filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredItems.map(item => (
-                  <ItemCard key={item.id} item={item} onSmartMatch={handleSmartMatch} />
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    onSmartMatch={handleSmartMatch}
+                    onResolve={handleResolveItem}
+                    onDelete={handleDeleteItem}
+                  />
                 ))}
               </div>
             ) : (

@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Item, AIAnalysisResult, MatchResponse } from "../types";
 
 const getAIClient = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (import.meta as any).env.GEMINI_API_KEY;
+  const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     console.error("API Key is missing!");
     throw new Error("API Key is missing");

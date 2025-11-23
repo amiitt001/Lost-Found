@@ -31,13 +31,15 @@ export const analyzeItemImage = async (base64Data: string, mimeType: string): Pr
   const prompt = `
     Analyze this image of a lost or found item. 
     Identify the object, its color, and any distinctive features.
+    **CRITICAL**: If there is any text, brand name, or model number visible (e.g. "Nike", "Apple", "SG", "Samsung"), you MUST include it in the title and description.
+    
     Return the result as a JSON object matching this schema:
     {
-      "title": "A short, descriptive title (e.g. 'Blue Nike Backpack')",
-      "description": "A detailed description of the visual appearance, including wear and tear if visible.",
+      "title": "A short, descriptive title including Brand/Model if visible (e.g. 'Blue Nike Backpack', 'SG Cricket Bat')",
+      "description": "A detailed description of the visual appearance. Mention specific logos, text, scratches, or unique identifiers.",
       "category": "One of: Electronics, Keys, Wallet/Purse, Clothing, Pets, Documents, Jewelry, Accessories, Other",
       "color": "Dominant color",
-      "tags": ["array", "of", "keywords"]
+      "tags": ["array", "of", "keywords", "including", "brand", "names"]
     }
   `;
 

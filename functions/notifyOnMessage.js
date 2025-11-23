@@ -24,12 +24,25 @@ exports.notifyOnMessage = functions.firestore
     const recipients = participants.filter(uid => uid !== message.senderId);
     if (recipients.length === 0) return null;
 
-    // Fetch tokens for recipients from users collection (you must store tokens when clients register)
+    // Fetch tokens for recipients from users collection (support multiple tokens per user)
     const tokens = [];
+    const tokenToUid = {};
     for (const uid of recipients) {
       const userDoc = await admin.firestore().doc(`users/${uid}`).get();
-      const token = userDoc.exists ? userDoc.data()?.fcmToken : null;
-      if (token) tokens.push(token);
+      if (!userDoc.exists) continue;
+      const data = userDoc.data() || {};
+      // Support both legacy `fcmToken` string and new `fcmTokens` array
+      if (data.fcmTokens && Array.isArray(data.fcmTokens)) {
+        for (const t of data.fcmTokens) {
+          if (t) {
+            tokens.push(t);
+            tokenToUid[t] = uid;
+          }
+        }
+      } else if (data.fcmToken) {
+        tokens.push(data.fcmToken);
+        tokenToUid[data.fcmToken] = uid;
+      }
     }
 
     if (tokens.length > 0) {
@@ -63,12 +76,34 @@ exports.notifyOnMessage = functions.firestore
           notification: payload.notification,
           data: payload.data
         });
-        // Log failures and consider cleaning invalid tokens
+
+        // Cleanup invalid tokens: remove from the user's fcmTokens array when necessary
         if (response.failureCount > 0) {
-          const errors = response.responses
-            .map((r, i) => ({ success: r.success, error: r.error, token: tokens[i] }))
-            .filter(r => !r.success);
-          console.warn('Some tokens failed:', errors);
+          const toRemove = [];
+          response.responses.forEach((res, i) => {
+            if (!res.success) {
+              const token = tokens[i];
+              const err = res.error;
+              console.warn('Token failed:', token, err && err.message);
+              // Known permanent errors include 'registration-token-not-registered'
+              const permanent = err && err.code && (err.code.includes('registration-token-not-registered') || err.code.includes('invalid-argument') || err.code.includes('messaging/invalid-registration-token'));
+              if (permanent) toRemove.push(token);
+            }
+          });
+
+          // Remove invalid tokens from respective user documents
+          for (const token of toRemove) {
+            const uid = tokenToUid[token];
+            if (!uid) continue;
+            try {
+              await admin.firestore().doc(`users/${uid}`).update({
+                fcmTokens: admin.firestore.FieldValue.arrayRemove(token)
+              });
+              console.log(`Removed invalid token for user ${uid}`);
+            } catch (e) {
+              console.warn('Failed to remove token from user doc', uid, e);
+            }
+          }
         }
       } catch (err) {
         console.error('FCM send error', err);

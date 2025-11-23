@@ -1,6 +1,6 @@
 import { getMessaging, getToken, deleteToken, onMessage } from 'firebase/messaging';
 import { db } from './firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 const VAPID_KEY = (import.meta as any).env?.VITE_FCM_VAPID_KEY || '';
 
@@ -12,8 +12,13 @@ export async function registerFcmTokenForUser(uid: string) {
     if (permission !== 'granted') return null;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (!token) return null;
-    // Save token to users/{uid}.fcmToken (overwrite existing)
-    await setDoc(doc(db, 'users', uid), { fcmToken: token }, { merge: true });
+    // Save token to users/{uid}.fcmTokens (array) so user can have multiple devices
+    try {
+      await updateDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) } as any);
+    } catch (e) {
+      // If update fails (doc may not exist), fallback to setDoc with merge
+      await setDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) }, { merge: true } as any);
+    }
     return token;
   } catch (err) {
     console.error('Failed to register FCM token', err);
@@ -27,8 +32,12 @@ export async function removeFcmTokenForUser(uid: string) {
     const messaging = getMessaging();
     const token = await getToken(messaging, { vapidKey: VAPID_KEY }).catch(() => null);
     if (token) await deleteToken(messaging).catch(() => null);
-    // Remove token from users/{uid}
-    await setDoc(doc(db, 'users', uid), { fcmToken: null }, { merge: true });
+    // Remove token from users/{uid}.fcmTokens array
+    try {
+      await updateDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) } as any);
+    } catch (e) {
+      // ignore
+    }
   } catch (err) {
     console.error('Failed to remove FCM token', err);
   }

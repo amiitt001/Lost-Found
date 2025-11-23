@@ -41,6 +41,16 @@ Vercel deploy checklist
 
 If you previously deployed with `VITE_GEMINI_API_KEY` or you published a build that included your key, rotate the key immediately.
 
+### Rotating a leaked Gemini API key
+If you see errors like `PERMISSION_DENIED` or the server logs indicate the key was reported as leaked, rotate the key immediately and update your deployment.
+
+1. Go to your GenAI/Google Cloud console and revoke/delete the exposed API key (or create a new key if rotation UI differs).
+2. In Vercel dashboard -> Project -> Settings -> Environment Variables, replace the `GEMINI_API_KEY` value with the new key (do not use `VITE_` prefix).
+3. Redeploy your Vercel project so serverless functions run with the new key.
+4. Verify by opening your site and triggering an analyze/match action — network requests to `/api/analyze` and `/api/match` should return 200.
+
+If you committed the key into your repository history, consider rotating keys for safety and follow the provider's guidance for compromised keys. You may also remove the key from your git history using tools like `git filter-repo` or BFG, but note this rewrites history and affects collaborators.
+
 ## Firebase setup (optional)
 
 1. Copy `.env.local.example` to `.env.local` and fill in your Firebase values.

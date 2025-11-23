@@ -54,6 +54,10 @@ export default async function handler(req, res) {
     return res.status(200).json(parsed);
   } catch (err) {
     console.error('api/match error:', err);
+    const errMsg = (err && (err.message || JSON.stringify(err))) || '';
+    if (err?.error?.code === 403 || /leak|leaked|PERMISSION_DENIED/i.test(errMsg)) {
+      return res.status(403).json({ error: 'Gemini API key denied or reported leaked. Rotate the key and set `GEMINI_API_KEY` in your deployment environment.', matches: [] });
+    }
     return res.status(500).json({ error: String(err), matches: [] });
   }
 }

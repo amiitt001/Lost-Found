@@ -27,7 +27,24 @@ export default async function handler(req, res) {
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
-        responseSchema: { type: Type.OBJECT }
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            matches: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  itemId: { type: Type.STRING },
+                  confidence: { type: Type.NUMBER },
+                  reasoning: { type: Type.STRING }
+                },
+                required: ['itemId', 'confidence', 'reasoning']
+              }
+            }
+          },
+          required: ['matches']
+        }
       }
     });
 

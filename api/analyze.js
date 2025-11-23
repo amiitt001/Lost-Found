@@ -32,7 +32,17 @@ export default async function handler(req, res) {
       },
       config: {
         responseMimeType: 'application/json',
-        responseSchema: { type: Type.OBJECT }
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            category: { type: Type.STRING },
+            color: { type: Type.STRING },
+            tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ['title', 'description', 'category', 'color', 'tags']
+        }
       }
     });
 

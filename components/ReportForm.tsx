@@ -6,6 +6,7 @@ import { db, storage } from '../services/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Loader2, Upload, Sparkles, X } from 'lucide-react';
+import localforage from 'localforage';
 
 interface ReportFormProps {
   type: ItemType;
@@ -113,8 +114,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
           finalPayload.imageUrl = url;
         } catch (uploadErr) {
           console.error('Image upload failed, queueing report for retry', uploadErr);
-          // Save to local queue for retry later (includes preview base64)
-          queuePendingReport({ payload: finalPayload, imageBase64: imagePreview, type });
+          // Save to local queue for retry later (store the File/Blob)
+          await queuePendingReport({ payload: finalPayload, imageFile: lastImageFile || undefined, type });
           return;
         }
       }
@@ -125,49 +126,67 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
       });
     } catch (err) {
       console.error('Failed to save report to Firestore; queueing for retry', err);
-      queuePendingReport({ payload, imageBase64: imagePreview, type });
+      await queuePendingReport({ payload, imageFile: lastImageFile || undefined, imageBase64: imagePreview, type });
     }
   };
 
-  // Local queue helpers (simple localStorage-based queue)
+  // IndexedDB-backed queue using localforage
   const QUEUE_KEY = 'lf_pending_reports_v1';
 
-  const getPendingQueue = (): Array<any> => {
+  const getPendingQueue = async (): Promise<Array<any>> => {
     try {
-      const raw = localStorage.getItem(QUEUE_KEY);
-      if (!raw) return [];
-      return JSON.parse(raw);
+      const q = (await localforage.getItem<Array<any>>(QUEUE_KEY)) || [];
+      return q;
     } catch (e) {
+      console.warn('Failed to read pending queue', e);
       return [];
     }
   };
 
-  const setPendingQueue = (q: Array<any>) => {
+  const setPendingQueue = async (q: Array<any>) => {
     try {
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+      await localforage.setItem(QUEUE_KEY, q);
     } catch (e) {
       console.warn('Failed to write pending queue', e);
     }
   };
 
-  const queuePendingReport = (item: { payload: any; imageBase64?: string; type: ItemType }) => {
-    const q = getPendingQueue();
-    q.push({ id: Date.now(), item });
-    setPendingQueue(q);
+  const queuePendingReport = async (item: { payload: any; imageFile?: File | Blob; imageBase64?: string; type: ItemType }) => {
+    try {
+      const q = await getPendingQueue();
+      q.push({ id: Date.now(), item });
+      await setPendingQueue(q);
+      // Inform user that report was queued for retry
+      try {
+        window.dispatchEvent(new CustomEvent('lf-toast', { detail: { message: 'Report saved offline — will retry when online', duration: 6000 } }));
+      } catch (e) {
+        /* ignore */
+      }
+    } catch (e) {
+      console.warn('Failed to queue pending report', e);
+    }
   };
 
   // Try to flush pending queue: attempt uploads and Firestore writes
   const flushPendingQueue = async () => {
-    const q = getPendingQueue();
+    const q = await getPendingQueue();
     if (!q.length) return;
     const remaining: any[] = [];
     for (const entry of q) {
       const { item } = entry;
-      const { payload, imageBase64 } = item;
+      const { payload, imageFile, imageBase64 } = item as { payload: any; imageFile?: File | Blob; imageBase64?: string };
       try {
         let finalPayload = { ...payload };
-        if (imageBase64) {
-          // convert base64 to blob
+        if (imageFile) {
+          // Upload the stored Blob/File directly
+          const fileName = (imageFile as File).name || `pending_${Date.now()}.png`;
+          const storagePath = `reports/${Date.now()}_${fileName}`;
+          const r = storageRef(storage, storagePath);
+          await uploadBytes(r, imageFile as Blob);
+          const url = await getDownloadURL(r);
+          finalPayload.imageUrl = url;
+        } else if (imageBase64) {
+          // Fallback for legacy entries: convert base64 to blob
           const res = await fetch(imageBase64);
           const blob = await res.blob();
           const fileName = `pending_${Date.now()}.png`;
@@ -181,19 +200,25 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
           ...finalPayload,
           createdAt: serverTimestamp(),
         });
+        // Success: notify user a queued report was flushed
+        try {
+          window.dispatchEvent(new CustomEvent('lf-toast', { detail: { message: 'Queued report uploaded', duration: 4000 } }));
+        } catch (e) {
+          /* ignore */
+        }
       } catch (err) {
         console.warn('Retry failed for pending report', entry, err);
         remaining.push(entry);
       }
     }
-    setPendingQueue(remaining);
+    await setPendingQueue(remaining);
   };
 
   React.useEffect(() => {
     // Try flushing on mount
-    flushPendingQueue();
+    void flushPendingQueue();
     // Also try when coming back online
-    const onOnline = () => flushPendingQueue();
+    const onOnline = () => { void flushPendingQueue(); };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
     // eslint-disable-next-line react-hooks/exhaustive-deps

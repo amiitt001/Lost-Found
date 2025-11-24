@@ -77,6 +77,19 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Listen for global toast events from components (e.g., ReportForm)
+  useEffect(() => {
+    const onToast = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (!detail) return;
+      setToastMessage(detail.message || String(detail));
+      const timeout = detail.duration || 5000;
+      setTimeout(() => setToastMessage(null), timeout);
+    };
+    window.addEventListener('lf-toast', onToast as EventListener);
+    return () => window.removeEventListener('lf-toast', onToast as EventListener);
+  }, []);
+
   // Handle adding new items
   const handleAddItem = async (newItem: Omit<Item, 'id'>) => {
     try {

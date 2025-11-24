@@ -167,8 +167,16 @@ const App: React.FC = () => {
 
     try {
       const response = await findSmartMatches(item, items);
-      // Sort by confidence
-      const sortedMatches = (response.matches || []).sort((a, b) => b.confidence - a.confidence);
+      // Normalize confidence to percentage (Gemini may return 0..1 or 0..100).
+      const normalized = (response.matches || []).map(m => {
+        let c = typeof m.confidence === 'number' ? m.confidence : parseFloat(String(m.confidence || 0));
+        if (!isFinite(c) || isNaN(c)) c = 0;
+        // If confidence looks like a fraction (<= 1) convert to percentage
+        if (c <= 1) c = c * 100;
+        return { ...m, confidence: c } as MatchResult;
+      });
+      // Sort by confidence descending
+      const sortedMatches = normalized.sort((a, b) => b.confidence - a.confidence);
       setMatchResults(sortedMatches);
     } catch (error) {
       console.error("Match failed", error);

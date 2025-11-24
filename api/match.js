@@ -62,15 +62,21 @@ export default async function handler(req, res) {
     if (!text) return res.status(502).json({ matches: [] });
     const parsed = cleanAndParseJSON(text);
 
-    // If Firestore admin is available and targetItem has an id, persist the best matchConfidence
+    // If Firestore admin is available, persist each returned match's confidence to the matched item document.
+    // This ensures FOUND candidate items receive a `matchConfidence` field so visibility rules can act on them.
     try {
-      if (admin.apps.length && parsed.matches && Array.isArray(parsed.matches) && targetItem && targetItem.id) {
-        const best = parsed.matches.reduce((max, m) => {
-          const c = typeof m.confidence === 'number' ? m.confidence : parseFloat(m.confidence || 0);
-          return isNaN(c) ? max : Math.max(max, c);
-        }, 0);
+      if (admin.apps.length && parsed.matches && Array.isArray(parsed.matches)) {
         const db = admin.firestore();
-        await db.collection('items').doc(String(targetItem.id)).set({ matchConfidence: best }, { merge: true });
+        for (const m of parsed.matches) {
+          const candidateId = m.itemId || m.id;
+          const c = typeof m.confidence === 'number' ? m.confidence : parseFloat(m.confidence || 0);
+          if (!candidateId) continue;
+          try {
+            await db.collection('items').doc(String(candidateId)).set({ matchConfidence: c }, { merge: true });
+          } catch (innerErr) {
+            console.warn(`Failed to write matchConfidence for item ${candidateId}:`, innerErr.message || innerErr);
+          }
+        }
       }
     } catch (writeErr) {
       console.warn('Failed to write matchConfidence to Firestore:', writeErr.message || writeErr);

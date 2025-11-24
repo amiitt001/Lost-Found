@@ -88,6 +88,7 @@ app.post('/api/match', async (req, res) => {
     const parsed = cleanAndParseJSON(text);
 
     // If FIRESTORE is available via GOOGLE_APPLICATION_CREDENTIALS, try to write matchConfidence
+    // to each matched candidate item so visibility rules can unlock FOUND items when appropriate.
     try {
       const { initializeApp } = require('firebase-admin/app');
       const { getFirestore } = require('firebase-admin/firestore');
@@ -97,12 +98,17 @@ app.post('/api/match', async (req, res) => {
         // ignore if already initialized or not configured
       }
       const db = getFirestore();
-      if (parsed.matches && Array.isArray(parsed.matches) && targetItem && targetItem.id) {
-        const best = parsed.matches.reduce((max, m) => {
+      if (parsed.matches && Array.isArray(parsed.matches)) {
+        for (const m of parsed.matches) {
+          const candidateId = m.itemId || m.id;
           const c = typeof m.confidence === 'number' ? m.confidence : parseFloat(m.confidence || 0);
-          return isNaN(c) ? max : Math.max(max, c);
-        }, 0);
-        await db.collection('items').doc(String(targetItem.id)).set({ matchConfidence: best }, { merge: true });
+          if (!candidateId) continue;
+          try {
+            await db.collection('items').doc(String(candidateId)).set({ matchConfidence: c }, { merge: true });
+          } catch (innerErr) {
+            console.warn(`Failed to write matchConfidence for item ${candidateId}:`, innerErr.message || innerErr);
+          }
+        }
       }
     } catch (err) {
       console.warn('Could not persist matchConfidence in local server:', err.message || err);

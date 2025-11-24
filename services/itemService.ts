@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, orderBy, Timestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import { isAdminUser } from './adminService';
 import { Item } from '../types';
 
 const ITEMS_COLLECTION = 'items';
@@ -25,16 +26,34 @@ export const getItemsFromFirestore = async (): Promise<Item[]> => {
         const q = query(collection(db, ITEMS_COLLECTION), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
 
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            // Convert Firestore Timestamp to string or Date if needed, 
-            // but our Item type uses string for date usually. 
-            // Let's ensure it matches the Item interface.
-            return {
-                id: doc.id,
-                ...data,
-            } as Item;
+        // Determine current user and admin status to control visibility for FOUND items
+        const currentUser = auth.currentUser;
+        const currentUid = currentUser ? currentUser.uid : null;
+        const isAdmin = currentUid ? await isAdminUser(currentUid) : false;
+
+        const items: Item[] = [];
+        querySnapshot.docs.forEach(d => {
+            const data = d.data() as any;
+            const type = data.type;
+
+            // Visibility rules enforced client-side as an additional safety layer:
+            // - Admins always see items
+            // - Non-FOUND items are visible
+            // - Uploader (owner) can see their own FOUND items
+            // - Items with matchConfidence > 0.1 are visible
+            const matchConfidence = typeof data.matchConfidence === 'number' ? data.matchConfidence : parseFloat(data.matchConfidence || '0');
+
+            const visible = isAdmin
+                || type !== 'FOUND'
+                || (currentUid && currentUid === data.userId)
+                || (!isNaN(matchConfidence) && matchConfidence > 0.1);
+
+            if (visible) {
+                items.push({ id: d.id, ...(data as any) } as Item);
+            }
         });
+
+        return items;
     } catch (error) {
         console.error("Error getting documents: ", error);
         throw error;

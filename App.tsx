@@ -69,6 +69,15 @@ const App: React.FC = () => {
             // ignore
           }
         })();
+        // Re-fetch items now that auth state changed (so uploader-owned FOUND items become visible)
+        (async () => {
+          try {
+            const fresh = await getItemsFromFirestore();
+            setItems(fresh);
+          } catch (err) {
+            console.error('Failed to refresh items after auth change', err);
+          }
+        })();
       } else {
         setIsAdmin(false);
       }

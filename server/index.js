@@ -86,6 +86,27 @@ app.post('/api/match', async (req, res) => {
     const text = response.text;
     if (!text) return res.json({ matches: [] });
     const parsed = cleanAndParseJSON(text);
+
+    // If FIRESTORE is available via GOOGLE_APPLICATION_CREDENTIALS, try to write matchConfidence
+    try {
+      const { initializeApp } = require('firebase-admin/app');
+      const { getFirestore } = require('firebase-admin/firestore');
+      try {
+        initializeApp();
+      } catch (e) {
+        // ignore if already initialized or not configured
+      }
+      const db = getFirestore();
+      if (parsed.matches && Array.isArray(parsed.matches) && targetItem && targetItem.id) {
+        const best = parsed.matches.reduce((max, m) => {
+          const c = typeof m.confidence === 'number' ? m.confidence : parseFloat(m.confidence || 0);
+          return isNaN(c) ? max : Math.max(max, c);
+        }, 0);
+        await db.collection('items').doc(String(targetItem.id)).set({ matchConfidence: best }, { merge: true });
+      }
+    } catch (err) {
+      console.warn('Could not persist matchConfidence in local server:', err.message || err);
+    }
     res.json(parsed);
   } catch (err) {
     console.error('Server /api/match error:', err);

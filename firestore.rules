@@ -2,10 +2,23 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Public items collection
+    // Items collection: restrict visibility for FOUND items until a match is detected
     match /items/{itemId} {
-      // Anyone can read items
-      allow read: if true;
+      // Read rules:
+      // - Admins can always read
+      // - Items that are not `FOUND` are public
+      // - The uploader (owner) can always read their own item
+      // - Once an automated match confidence is above 10% (0.1) the item becomes readable
+      allow read: if (
+        // admin
+        (request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
+        // non-found items are public
+        || (resource.data.type != 'FOUND')
+        // uploader may read
+        || (request.auth != null && request.auth.uid == resource.data.userId)
+        // match confidence threshold (numeric > 0.1)
+        || ((resource.data.matchConfidence is number) && resource.data.matchConfidence > 0.1)
+      );
 
       // Only authenticated users can create items and userId must match auth.uid
       allow create: if request.auth != null

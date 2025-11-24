@@ -1,4 +1,14 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import admin from 'firebase-admin';
+
+// Initialize Firebase Admin if possible (server environment should provide credentials)
+try {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
+} catch (e) {
+  console.warn('Firebase Admin init skipped or failed (may not be configured):', e.message || e);
+}
 
 const cleanAndParseJSON = (text) => {
   let cleanText = text?.trim() || '';
@@ -51,6 +61,20 @@ export default async function handler(req, res) {
     const text = response.text;
     if (!text) return res.status(502).json({ matches: [] });
     const parsed = cleanAndParseJSON(text);
+
+    // If Firestore admin is available and targetItem has an id, persist the best matchConfidence
+    try {
+      if (admin.apps.length && parsed.matches && Array.isArray(parsed.matches) && targetItem && targetItem.id) {
+        const best = parsed.matches.reduce((max, m) => {
+          const c = typeof m.confidence === 'number' ? m.confidence : parseFloat(m.confidence || 0);
+          return isNaN(c) ? max : Math.max(max, c);
+        }, 0);
+        const db = admin.firestore();
+        await db.collection('items').doc(String(targetItem.id)).set({ matchConfidence: best }, { merge: true });
+      }
+    } catch (writeErr) {
+      console.warn('Failed to write matchConfidence to Firestore:', writeErr.message || writeErr);
+    }
     return res.status(200).json(parsed);
   } catch (err) {
     console.error('api/match error:', err);

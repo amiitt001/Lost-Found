@@ -2,8 +2,9 @@ import React, { useState, useRef } from 'react';
 import { ItemType, Item } from '../types';
 import { CATEGORIES } from '../constants';
 import { analyzeItemImage } from '../services/geminiService';
-import { db } from '../services/firebase';
+import { db, storage } from '../services/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Loader2, Upload, Sparkles, X } from 'lucide-react';
 
 interface ReportFormProps {
@@ -40,7 +41,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
     reader.onloadend = () => {
       const base64String = reader.result as string;
       setImagePreview(base64String);
-      setFormData(prev => ({ ...prev, imageUrl: base64String }));
+      // Keep preview separate from final storage URL
+      setFormData(prev => ({ ...prev, imageUrl: null }));
       setLastImageFile(file);
       setAiError(null);
 
@@ -98,17 +100,104 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
     // Keep existing local behavior (add to app state)
     onSubmit(payload);
 
-    // Also attempt to persist to Firestore (best-effort)
+    // Persist to Firestore, uploading image to Storage first when present.
     try {
+      let finalPayload = { ...payload } as any;
+
+      if (lastImageFile) {
+        try {
+          const storagePath = `reports/${Date.now()}_${lastImageFile.name}`;
+          const r = storageRef(storage, storagePath);
+          await uploadBytes(r, lastImageFile);
+          const url = await getDownloadURL(r);
+          finalPayload.imageUrl = url;
+        } catch (uploadErr) {
+          console.error('Image upload failed, queueing report for retry', uploadErr);
+          // Save to local queue for retry later (includes preview base64)
+          queuePendingReport({ payload: finalPayload, imageBase64: imagePreview, type });
+          return;
+        }
+      }
+
       await addDoc(collection(db, 'reports'), {
-        ...payload,
+        ...finalPayload,
         createdAt: serverTimestamp(),
       });
     } catch (err) {
-      console.error('Failed to save report to Firestore', err);
-      // Do not block the UI — app still uses local state. Optionally, show a toast in the future.
+      console.error('Failed to save report to Firestore; queueing for retry', err);
+      queuePendingReport({ payload, imageBase64: imagePreview, type });
     }
   };
+
+  // Local queue helpers (simple localStorage-based queue)
+  const QUEUE_KEY = 'lf_pending_reports_v1';
+
+  const getPendingQueue = (): Array<any> => {
+    try {
+      const raw = localStorage.getItem(QUEUE_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const setPendingQueue = (q: Array<any>) => {
+    try {
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+    } catch (e) {
+      console.warn('Failed to write pending queue', e);
+    }
+  };
+
+  const queuePendingReport = (item: { payload: any; imageBase64?: string; type: ItemType }) => {
+    const q = getPendingQueue();
+    q.push({ id: Date.now(), item });
+    setPendingQueue(q);
+  };
+
+  // Try to flush pending queue: attempt uploads and Firestore writes
+  const flushPendingQueue = async () => {
+    const q = getPendingQueue();
+    if (!q.length) return;
+    const remaining: any[] = [];
+    for (const entry of q) {
+      const { item } = entry;
+      const { payload, imageBase64 } = item;
+      try {
+        let finalPayload = { ...payload };
+        if (imageBase64) {
+          // convert base64 to blob
+          const res = await fetch(imageBase64);
+          const blob = await res.blob();
+          const fileName = `pending_${Date.now()}.png`;
+          const storagePath = `reports/${Date.now()}_${fileName}`;
+          const r = storageRef(storage, storagePath);
+          await uploadBytes(r, blob);
+          const url = await getDownloadURL(r);
+          finalPayload.imageUrl = url;
+        }
+        await addDoc(collection(db, 'reports'), {
+          ...finalPayload,
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.warn('Retry failed for pending report', entry, err);
+        remaining.push(entry);
+      }
+    }
+    setPendingQueue(remaining);
+  };
+
+  React.useEffect(() => {
+    // Try flushing on mount
+    flushPendingQueue();
+    // Also try when coming back online
+    const onOnline = () => flushPendingQueue();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 w-full">

@@ -12,9 +12,19 @@ service cloud.firestore {
         || ((resource.data.matchConfidence is number) && resource.data.matchConfidence > 0.1)
       );
 
-      // List (queries): allow signed-in users to query items. The client should filter out FOUND items
-      // unless they are permitted to see them. Adjust later for stricter server-side filtering.
-      allow list: if request.auth != null;
+      // List (queries): restrict listing so clients cannot retrieve FOUND items unless
+      // - the query explicitly filters out FOUND (e.g. `where('type', '!=', 'FOUND')`), or
+      // - the query is for the current user's items (owner), or
+      // - the query asks only for high-confidence matches (matchConfidence > 0.1).
+      // NOTE: Firestore rules can inspect the query constraints via request.query.
+      allow list: if request.auth != null && (
+        // query excludes FOUND items
+        request.query.where('type', '!=', 'FOUND')
+        // OR query is asking for items owned by the requesting user
+        || request.query.where('userId', '==', request.auth.uid)
+        // OR query is asking only for sufficiently confident matches
+        || request.query.where('matchConfidence', '>', 0.1)
+      );
 
       // Only authenticated users can create items and userId must match auth.uid
       allow create: if request.auth != null

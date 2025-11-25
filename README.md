@@ -66,3 +66,67 @@ VITE_FIREBASE_APP_ID
 ```
 
 3. Do NOT commit `.env.local` (it's listed in `.gitignore`).
+
+## Deploy Firebase Rules
+
+This project includes `storage.rules` and `firestore.rules` to enforce upload paths and privacy for FOUND items.
+
+1. Install Firebase CLI and log in (if not already):
+
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+2. Select or add your Firebase project (run inside project folder):
+
+```bash
+firebase use --add
+```
+
+3. Deploy Storage rules (ensures uploads are allowed only into `reports/{uid}/...`):
+
+```bash
+firebase deploy --only storage
+```
+
+4. Deploy Firestore rules (enforces FOUND item visibility and moderation rules):
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+5. Verify behavior:
+- Sign in as a test user and submit a report with image; the upload path should be `reports/{yourUid}/...` and should NOT return 403.
+- If you have pending queued reports, sign in with the same account that created them then go online to let the app flush the queue.
+
+If you prefer server-generated signed upload URLs instead of client writes, I can add a secure endpoint that returns short-lived upload URLs and adjust the client accordingly.
+
+## Optional: Local Flask seating service
+
+This repo includes a small example Flask service that can parse an uploaded XLSX/XLS and produce seating plans.
+
+- File: `backend/app.py`
+- Requirements: `backend/requirements.txt`
+
+Run locally (in `cmd.exe`):
+
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+API endpoints:
+- `POST /upload` - multipart form file upload (key `file`). Returns `data_id`.
+- `POST /calculate` - JSON body `{ "data_id": "<id>", "pattern": "standard" }` returns seating plan and unallocated list.
+
+Example usage (curl):
+
+```bash
+curl -F "file=@/path/to/seating.xlsx" http://127.0.0.1:5000/upload
+
+curl -H "Content-Type: application/json" -d '{"data_id":"1","pattern":"snake"}' http://127.0.0.1:5000/calculate
+```

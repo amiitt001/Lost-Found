@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { ItemType, Item } from '../types';
 import { CATEGORIES } from '../constants';
 import { analyzeItemImage } from '../services/geminiService';
-import { db, storage } from '../services/firebase';
+import { db, storage, auth } from '../services/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Loader2, Upload, Sparkles, X } from 'lucide-react';
@@ -106,16 +106,23 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
       let finalPayload = { ...payload } as any;
 
       if (lastImageFile) {
+        const uid = auth.currentUser?.uid;
+        if (!uid) {
+          // User not signed in: queue and prompt to sign in before flush
+          await queuePendingReport({ payload: finalPayload, imageFile: lastImageFile || undefined, type, userId: null });
+          try { window.dispatchEvent(new CustomEvent('lf-toast', { detail: { message: 'Please sign in to upload images. Your report is queued for upload.', duration: 8000 } })); } catch (e) {}
+          return;
+        }
+        const storagePath = `reports/${uid}/${Date.now()}_${lastImageFile.name}`;
         try {
-          const storagePath = `reports/${Date.now()}_${lastImageFile.name}`;
           const r = storageRef(storage, storagePath);
           await uploadBytes(r, lastImageFile);
           const url = await getDownloadURL(r);
           finalPayload.imageUrl = url;
         } catch (uploadErr) {
-          console.error('Image upload failed, queueing report for retry', uploadErr);
+          console.error('Image upload failed, queueing report for retry', { uploadErr, uid, storagePath });
           // Save to local queue for retry later (store the File/Blob)
-          await queuePendingReport({ payload: finalPayload, imageFile: lastImageFile || undefined, type });
+          await queuePendingReport({ payload: finalPayload, imageFile: lastImageFile || undefined, type, userId: uid });
           return;
         }
       }
@@ -126,7 +133,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
       });
     } catch (err) {
       console.error('Failed to save report to Firestore; queueing for retry', err);
-      await queuePendingReport({ payload, imageFile: lastImageFile || undefined, imageBase64: imagePreview, type });
+      await queuePendingReport({ payload, imageFile: lastImageFile || undefined, imageBase64: imagePreview, type, userId: auth.currentUser?.uid || null });
     }
   };
 
@@ -151,7 +158,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
     }
   };
 
-  const queuePendingReport = async (item: { payload: any; imageFile?: File | Blob; imageBase64?: string; type: ItemType }) => {
+  const queuePendingReport = async (item: { payload: any; imageFile?: File | Blob; imageBase64?: string; type: ItemType; userId?: string | null }) => {
     try {
       const q = await getPendingQueue();
       q.push({ id: Date.now(), item });
@@ -174,13 +181,22 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
     const remaining: any[] = [];
     for (const entry of q) {
       const { item } = entry;
-      const { payload, imageFile, imageBase64 } = item as { payload: any; imageFile?: File | Blob; imageBase64?: string };
+      const { payload, imageFile, imageBase64, userId } = item as { payload: any; imageFile?: File | Blob; imageBase64?: string; userId?: string | null };
       try {
         let finalPayload = { ...payload };
         if (imageFile) {
           // Upload the stored Blob/File directly
           const fileName = (imageFile as File).name || `pending_${Date.now()}.png`;
-          const storagePath = `reports/${Date.now()}_${fileName}`;
+          const uid = userId || auth.currentUser?.uid;
+          if (!uid) {
+            // We cannot upload for anonymous/unknown user; defer until user signs in
+            remaining.push(entry);
+            try {
+              window.dispatchEvent(new CustomEvent('lf-toast', { detail: { message: 'Please sign in to upload queued reports', duration: 8000 } }));
+            } catch (e) { /* ignore */ }
+            continue;
+          }
+          const storagePath = `reports/${uid}/${Date.now()}_${fileName}`;
           const r = storageRef(storage, storagePath);
           await uploadBytes(r, imageFile as Blob);
           const url = await getDownloadURL(r);
@@ -190,7 +206,15 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
           const res = await fetch(imageBase64);
           const blob = await res.blob();
           const fileName = `pending_${Date.now()}.png`;
-          const storagePath = `reports/${Date.now()}_${fileName}`;
+          const uid = userId || auth.currentUser?.uid;
+          if (!uid) {
+            remaining.push(entry);
+            try {
+              window.dispatchEvent(new CustomEvent('lf-toast', { detail: { message: 'Please sign in to upload queued reports', duration: 8000 } }));
+            } catch (e) { /* ignore */ }
+            continue;
+          }
+          const storagePath = `reports/${uid}/${Date.now()}_${fileName}`;
           const r = storageRef(storage, storagePath);
           await uploadBytes(r, blob);
           const url = await getDownloadURL(r);

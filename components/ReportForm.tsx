@@ -127,8 +127,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({ type, onSubmit, onCancel
         }
       }
 
+      // Ensure report document includes the uploader's uid to satisfy security rules
       await addDoc(collection(db, 'reports'), {
         ...finalPayload,
+        userId: auth.currentUser?.uid || null,
         createdAt: serverTimestamp(),
       });
     } catch (err) {

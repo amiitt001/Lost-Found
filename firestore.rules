@@ -31,14 +31,14 @@ service cloud.firestore {
       // Allow users to read their own document
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // Allow creating/updating only by the user themself and restrict writes to allowed profile fields
-      // Support `fcmTokens` (array of strings) and common profile fields.
+      // Allow creating/updating only by the user themself.
+      // If `fcmTokens` is provided it must be a list. This also allows update operations
+      // that use arrayUnion/arrayRemove transforms because we only validate when the field is present.
       allow create, update: if request.auth != null
                               && request.auth.uid == userId
                               && (
-                                (request.resource.data.keys().hasOnly(['fcmTokens', 'displayName', 'photoURL'])
-                                  && (request.resource.data.fcmTokens is list || request.resource.data.fcmTokens == null)
-                                )
+                                (!request.resource.data.keys().hasAny(['fcmTokens']))
+                                || (request.resource.data.fcmTokens is list)
                               );
 
       // Do not allow delete via client

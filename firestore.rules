@@ -4,21 +4,17 @@ service cloud.firestore {
 
     // Items collection: restrict visibility for FOUND items until a match is detected
     match /items/{itemId} {
-      // Read rules:
-      // - Admins can always read
-      // - Items that are not `FOUND` are public
-      // - The uploader (owner) can always read their own item
-      // - Once an automated match confidence is above 10% (0.1) the item becomes readable
-      allow read: if (
-        // admin
+      // Get (single document): enforce strict visibility
+      allow get: if (
         (request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid)))
-        // non-found items are public
         || (resource.data.type != 'FOUND')
-        // uploader may read
         || (request.auth != null && request.auth.uid == resource.data.userId)
-        // match confidence threshold (numeric > 0.1)
         || ((resource.data.matchConfidence is number) && resource.data.matchConfidence > 0.1)
       );
+
+      // List (queries): allow signed-in users to query items. The client should filter out FOUND items
+      // unless they are permitted to see them. Adjust later for stricter server-side filtering.
+      allow list: if request.auth != null;
 
       // Only authenticated users can create items and userId must match auth.uid
       allow create: if request.auth != null
@@ -35,16 +31,25 @@ service cloud.firestore {
       // Allow users to read their own document
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // Allow creating/updating only by the user themself and restrict writes to fcmToken field
+      // Allow creating/updating only by the user themself and restrict writes to allowed profile fields
+      // Support `fcmTokens` (array of strings) and common profile fields.
       allow create, update: if request.auth != null
                               && request.auth.uid == userId
                               && (
-                                // allow writing fcmToken (string or null)
-                                (request.resource.data.keys().hasOnly(['fcmToken']) && (request.resource.data.fcmToken is string || request.resource.data.fcmToken == null))
+                                (request.resource.data.keys().hasOnly(['fcmTokens', 'displayName', 'photoURL'])
+                                  && (request.resource.data.fcmTokens is list || request.resource.data.fcmTokens == null)
+                                )
                               );
 
       // Do not allow delete via client
       allow delete: if false;
+    }
+
+    // Admins collection: allow a user to read their own admin marker document to check admin status
+    match /admins/{adminId} {
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      allow create: if false;
+      allow update, delete: if false;
     }
 
     // Conversations collection

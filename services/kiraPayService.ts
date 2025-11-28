@@ -30,7 +30,7 @@ export const createPaymentTransaction = async (paymentDetails: PaymentRequest): 
                 'x-api-key': apiKey,
             },
             body: JSON.stringify({
-                amount: paymentDetails.amount,
+                price: paymentDetails.amount,
                 currency: paymentDetails.currency,
                 description: paymentDetails.description,
                 customer_email: paymentDetails.customerEmail,

@@ -2,12 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { GoogleGenAI, Type } = require('@google/genai');
+require('dotenv').config(); // Load env vars
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
 const apiKey = process.env.GEMINI_API_KEY;
+const kiraPayApiKey = process.env.KIRAPAY_API_KEY;
 if (!apiKey) {
   console.warn('Warning: GEMINI_API_KEY not set. API endpoints will return errors.');
 }
@@ -117,6 +119,44 @@ app.post('/api/match', async (req, res) => {
   } catch (err) {
     console.error('Server /api/match error:', err);
     res.status(500).json({ error: String(err), matches: [] });
+  }
+});
+app.post('/api/create-payment', async (req, res) => {
+  try {
+    const { price, currency, description, customer_email } = req.body;
+
+    if (!kiraPayApiKey) {
+      return res.status(500).json({ error: 'Server missing KIRAPAY_API_KEY' });
+    }
+
+    // Call KiraPay API
+    // Endpoint: https://kirapay-api.holatech.app/api/link (as discovered)
+    const response = await fetch('https://kirapay-api.holatech.app/api/link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': kiraPayApiKey,
+      },
+      body: JSON.stringify({
+        price,
+        currency,
+        description,
+        customer_email
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('KiraPay API Error:', response.status, errorText);
+      return res.status(response.status).json({ error: `KiraPay API failed: ${errorText}` });
+    }
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (err) {
+    console.error('Server /api/create-payment error:', err);
+    res.status(500).json({ error: String(err) });
   }
 });
 

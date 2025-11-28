@@ -16,18 +16,14 @@ export interface PaymentResponse {
 }
 
 export const createPaymentTransaction = async (paymentDetails: PaymentRequest): Promise<PaymentResponse> => {
-    const apiKey = import.meta.env.VITE_KIRAPAY_API_KEY;
-
-    if (!apiKey) {
-        throw new Error('KiraPay API Key is missing in configuration');
-    }
+    // Call local backend proxy instead of direct API
+    const API_URL = 'http://localhost:4000/api/create-payment';
 
     try {
-        const response = await fetch(`${KIRAPAY_API_BASE_URL}/link`, {
+        const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': apiKey,
             },
             body: JSON.stringify({
                 price: paymentDetails.amount,
@@ -39,14 +35,14 @@ export const createPaymentTransaction = async (paymentDetails: PaymentRequest): 
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || `Payment creation failed with status ${response.status}`);
+            throw new Error(errorData.error || errorData.message || `Payment creation failed with status ${response.status}`);
         }
 
         const data = await response.json();
 
         // Mapping the response to our internal interface
         return {
-            paymentUrl: data.payment_url || data.url, // Adjust based on actual response
+            paymentUrl: data.payment_url || data.url,
             transactionId: data.id || data.transaction_id,
             status: data.status,
         };

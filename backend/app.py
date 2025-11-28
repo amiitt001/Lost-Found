@@ -130,6 +130,26 @@ def generate_seating_plan(students, rooms, pattern='standard'):
 
     return processed_rooms, unallocated
 
+@app.route('/create-paymen', methods=['POST'])
+def create_payment():
+    """Handles payment creation."""
+    try:
+        data = request.json
+        amount = data.get('amount')
+        currency = data.get('currency')
+        description = data.get('description')
+        customer_email = data.get('customerEmail')
+
+        # Validate amount and currency
+        if not amount or not currency:
+            return jsonify({"error": "Amount and currency are required"}), 400
+
+        # Create payment transaction
+        payment_response = create_payment_transaction(amount, currency, description, customer_email)
+
+        return jsonify(payment_response), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_file():

@@ -130,7 +130,7 @@ def generate_seating_plan(students, rooms, pattern='standard'):
 
     return processed_rooms, unallocated
 
-@app.route('/create-paymen', methods=['POST'])
+@app.route('/create-payment', methods=['POST'])
 def create_payment():
     """Handles payment creation."""
     try:

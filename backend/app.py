@@ -2,10 +2,13 @@ import sys
 import os
 import json
 from io import BytesIO
-from openpyxl import load_workbook
+try:
+    from openpyxl import load_workbook  # type: ignore
+except ImportError:
+    # Defer a helpful error until runtime when a file is uploaded
+    load_workbook = None
 from flask import Flask, request, jsonify
 from flask_cors import CORS  # Needed to allow the frontend to talk to the backend
-
 # --- Configuration ---
 app = Flask(__name__)
 # Enable CORS for all routes for frontend access
@@ -128,10 +131,6 @@ def generate_seating_plan(students, rooms, pattern='standard'):
     return processed_rooms, unallocated
 
 
-# ==========================================
-# Section C: API Endpoints
-# ==========================================
-
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """Handles Excel file upload, parses data, and stores it."""
@@ -144,8 +143,13 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
 
     if file and file.filename.endswith(('.xlsx', '.xls')):
+        # Provide a clear runtime error if openpyxl isn't available
+        if load_workbook is None:
+            return jsonify({
+                "error": "Server missing dependency 'openpyxl'. Please install it: pip install openpyxl"
+            }), 500
         try:
-            # Read file into memory buffer
+            # Read file into memory buffer once and open workbook
             file_bytes = file.read()
             wb = load_workbook(BytesIO(file_bytes), data_only=True)
             sheet = wb.active

@@ -1,6 +1,6 @@
 import { Item } from '../types';
 
-const KIRAPAY_API_BASE_URL = 'https://api.kira-pay.com/api/v1'; // Assuming base URL based on common patterns, to be verified
+const KIRAPAY_API_BASE_URL = 'https://kirapay-api.holatech.app/api';
 
 export interface PaymentRequest {
     amount: number;
